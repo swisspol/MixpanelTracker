@@ -27,8 +27,8 @@
 
 #import <AppKit/AppKit.h>
 
-#define MIXPANEL_TRACK_EVENT(__NAME__, __PROPERTIES__) [[MixpanelTracker sharedTracker] recordEventWithName:(__NAME__) properties:(__PROPERTIES__)]
-#define MIXPANEL_TRACK_PURCHASE(__AMOUNT__, __ATTRIBUTES__) [[MixpanelTracker sharedTracker] recordPurchaseWithAmount:(__AMOUNT__) attributes:(__ATTRIBUTES__)]
+#define MIXPANEL_TRACK_EVENT(__NAME__, ...) [[MixpanelTracker sharedTracker] recordEventWithName:(__NAME__) properties:(__VA_ARGS__)]
+#define MIXPANEL_TRACK_PURCHASE(__AMOUNT__, ...) [[MixpanelTracker sharedTracker] recordPurchaseWithAmount:(__AMOUNT__) attributes:(__VA_ARGS__)]
 
 @interface MixpanelTracker : NSObject
 + (MixpanelTracker*)sharedTracker;
