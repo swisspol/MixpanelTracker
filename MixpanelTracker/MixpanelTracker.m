@@ -491,10 +491,10 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 // Assume called from log queue
 - (void)_flushLog:(BOOL)force {
-  if (force || (_logPendingWrite >= kLogMaxWritePending) || (CFAbsoluteTimeGetCurrent() >= _lastLogWrite + kLogMaxWriteDelay)) {
+  if (force || (_logPendingWrite >= kLogMaxWritePending) || ((_logPendingWrite > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogWrite + kLogMaxWriteDelay))) {
     [self _writeLog];
   }
-  if (force || (_log.count >= kLogMaxSendPending) || (CFAbsoluteTimeGetCurrent() >= _lastLogSend + kLogMaxSendDelay)) {
+  if (force || (_log.count >= kLogMaxSendPending) || ((_log.count > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogSend + kLogMaxSendDelay))) {
     [self _sendLog:YES];
   }
 }
