@@ -270,6 +270,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
     NSMutableData* body = [NSMutableData dataWithBytes:"data=" length:5];
     [body appendBytes:buffer length:length];
+#ifndef NDEBUG
+    [body appendBytes:"&verbose=1" length:10];
+#endif
     [request setHTTPBody:body];
     [request setValue:[[NSNumber numberWithUnsignedInteger:body.length] stringValue] forHTTPHeaderField:@"Content-Length"];
     free(buffer);
@@ -278,6 +281,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     char* buffer = NewBase64Encode(data.bytes, data.length, false, &length);
     NSString* string = [[NSString alloc] initWithBytes:buffer length:length encoding:NSASCIIStringEncoding];
     NSString* url = [NSString stringWithFormat:@"http://%@/%@/?data=%@", kAPIHostname, api, string];
+#ifndef NDEBUG
+    url = [url stringByAppendingString:@"&verbose=1"];
+#endif
     request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
     free(buffer);
   }
@@ -287,11 +293,17 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 }
 
 - (BOOL)_checkAPI:(NSString*)api payload:(NSDictionary*)payload response:(NSURLResponse*)response data:(NSData*)data error:(NSError*)error {
+#ifdef NDEBUG
   if ((data.length != 1) || (*(char*)data.bytes != '1')) {
-    NSLog(@"Failed calling Mixpanel API '%@': %@", api, response ? response : error);
+    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : response);
     return NO;
   }
-#ifndef NDEBUG
+#else
+  NSDictionary* result = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+  if (![result isKindOfClass:[NSDictionary class]] || ([[result objectForKey:@"status"] integerValue] != 1)) {
+    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"status"]);
+    return NO;
+  }
   NSData* json = [NSJSONSerialization dataWithJSONObject:payload options:NSJSONWritingPrettyPrinted error:NULL];
   NSLog(@"Successfully called Mixpanel API '%@' with payload: %@", api, [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]);
 #endif
