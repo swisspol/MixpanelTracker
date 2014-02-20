@@ -299,7 +299,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     return NO;
   }
 #else
-  NSDictionary* result = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+  NSDictionary* result = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
   if (![result isKindOfClass:[NSDictionary class]] || ([[result objectForKey:@"status"] integerValue] != 1)) {
     NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"status"]);
     return NO;
