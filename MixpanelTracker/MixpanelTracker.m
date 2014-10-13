@@ -40,7 +40,7 @@
 #define kAPIMaxBatchSize 50
 
 #define kLogFile @"MixpanelTracker.plist"
-#ifdef NDEBUG
+#if !DEBUG
 #define kLogMaxWriteDelay 60.0
 #define kLogMaxWritePending 20
 #define kLogMaxSendDelay 300.0
@@ -218,14 +218,14 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       }
       if (log) {
         [_log addObjectsFromArray:log];
-#ifndef NDEBUG
+#if DEBUG
         NSLog(@"Loaded Mixpanel log with %lu entries", (unsigned long)_log.count);
 #endif
       } else {
         NSLog(@"Failed reading Mixpanel log from \"%@\": %@", _logPath, error);
       }
     } else {
-#ifndef NDEBUG
+#if DEBUG
       NSLog(@"Creating new Mixpanel log");
 #endif
       NSDictionary* entry = @{
@@ -270,7 +270,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
     NSMutableData* body = [NSMutableData dataWithBytes:"data=" length:5];
     [body appendBytes:buffer length:length];
-#ifndef NDEBUG
+#if DEBUG
     [body appendBytes:"&verbose=1" length:10];
 #endif
     [request setHTTPBody:body];
@@ -281,7 +281,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     char* buffer = NewBase64Encode(data.bytes, data.length, false, &length);
     NSString* string = [[NSString alloc] initWithBytes:buffer length:length encoding:NSASCIIStringEncoding];
     NSString* url = [NSString stringWithFormat:@"http://%@/%@/?data=%@", kAPIHostname, api, string];
-#ifndef NDEBUG
+#if DEBUG
     url = [url stringByAppendingString:@"&verbose=1"];
 #endif
     request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
@@ -293,7 +293,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 }
 
 - (BOOL)_checkAPI:(NSString*)api payload:(NSDictionary*)payload response:(NSURLResponse*)response data:(NSData*)data error:(NSError*)error {
-#ifdef NDEBUG
+#if !DEBUG
   if ((data.length != 1) || (*(char*)data.bytes != '1')) {
     NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : response);
     return NO;
@@ -492,7 +492,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     else {
       _logPendingWrite = 0;
       _lastLogWrite = CFAbsoluteTimeGetCurrent();
-#ifndef NDEBUG
+#if DEBUG
       NSLog(@"Saved Mixpanel log with %lu entries", (unsigned long)_log.count);
 #endif
     }
@@ -527,7 +527,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
-#ifndef NDEBUG
+#if DEBUG
     NSLog(@"Recorded Mixpanel event \"%@\" with properties: %@", name, properties);
 #endif
   });
@@ -540,7 +540,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
-#ifndef NDEBUG
+#if DEBUG
     NSLog(@"Recorded Mixpanel user profile creation");
 #endif
   });
@@ -555,7 +555,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
-#ifndef NDEBUG
+#if DEBUG
     if (addedProperties.count) {
       NSLog(@"Recorded Mixpanel user profile update with added properties: %@", addedProperties);
     }
@@ -575,7 +575,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:YES];
-#ifndef NDEBUG
+#if DEBUG
     NSLog(@"Recorded Mixpanel purchase for \"%f\" with attributes: %@", amount, attributes);
 #endif
   });
