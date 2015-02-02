@@ -45,7 +45,6 @@ char *NewBase64Encode(
 {
   const unsigned char *inputBuffer = (const unsigned char *)buffer;
   
-  #define MAX_NUM_PADDING_CHARS 2
   #define OUTPUT_LINE_LENGTH 64
   #define INPUT_LINE_LENGTH ((OUTPUT_LINE_LENGTH / BASE64_UNIT_SIZE) * BINARY_UNIT_SIZE)
   #define CR_LF_SIZE 2
