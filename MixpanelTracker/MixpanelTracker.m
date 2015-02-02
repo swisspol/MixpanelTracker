@@ -320,7 +320,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       }
     }];
   } else {
-    NSURLRequest* request = [self _urlRequestForAPI:api withPayload:payload usePost:usePost];
     NSError* error = nil;
     NSURLResponse* response = nil;
     NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
