@@ -119,29 +119,26 @@ static NSData* _CopyPrimaryMACAddress() {
   return data;
 }
 
-static inline NSString* _HashToString(const unsigned char* hash, NSUInteger size) {
-  char buffer[2 * size];
-  for (NSUInteger i = 0; i < size; ++i) {
-    char byte = hash[i];
-    unsigned char byteHi = (byte & 0xF0) >> 4;
-    buffer[2 * i + 0] = byteHi >= 10 ? 'A' + byteHi - 10 : '0' + byteHi;
-    unsigned char byteLo = byte & 0x0F;
-    buffer[2 * i + 1] = byteLo >= 10 ? 'A' + byteLo - 10 : '0' + byteLo;
-  }
-  return [[NSString alloc] initWithBytes:buffer length:(2 * size) encoding:NSASCIIStringEncoding];
-}
-
 static NSString* _GetDefaultDistinctID() {
   NSData* data = _CopyPrimaryMACAddress();
   if (data) {
     unsigned char hash[CC_MD5_DIGEST_LENGTH];
     CC_MD5_CTX context;
     CC_MD5_Init(&context);
-    CC_MD5_Update(&context, data.bytes, data.length);
+    CC_MD5_Update(&context, data.bytes, (CC_LONG)data.length);
     const char* userName = [NSUserName() UTF8String];
-    CC_MD5_Update(&context, userName, strlen(userName));
+    CC_MD5_Update(&context, userName, (CC_LONG)strlen(userName));
     CC_MD5_Final(hash, &context);
-    return _HashToString(hash, sizeof(hash));
+    
+    char buffer[2 * CC_MD5_DIGEST_LENGTH];
+    for (NSUInteger i = 0; i < CC_MD5_DIGEST_LENGTH; ++i) {
+      char byte = hash[i];
+      unsigned char byteHi = (byte & 0xF0) >> 4;
+      buffer[2 * i + 0] = byteHi >= 10 ? 'A' + byteHi - 10 : '0' + byteHi;
+      unsigned char byteLo = byte & 0x0F;
+      buffer[2 * i + 1] = byteLo >= 10 ? 'A' + byteLo - 10 : '0' + byteLo;
+    }
+    return [[NSString alloc] initWithBytes:buffer length:sizeof(buffer) encoding:NSASCIIStringEncoding];
   }
   return @"<default>";
 }
