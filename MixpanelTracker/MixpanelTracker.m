@@ -68,8 +68,9 @@
 #define kLogEntry_PurchaseAmount @"Amount"
 #define kLogEntry_PurchaseAttributes @"Attributes"
 
-static NSString* const MixpanelTrackerUserProfilePropertyCreated = @"Created";
-static NSString* const MixpanelTrackerUserProfilePropertyName = @"Name";
+static NSString* const MixpanelTrackerUserProfilePropertyCreated = @"$created";  // Special Mixpanel property
+static NSString* const MixpanelTrackerUserProfilePropertyName = @"$name";  // Special Mixpanel property
+static NSString* const MixpanelTrackerUserProfilePropertyEmail = @"$email";  // Special Mixpanel property
 static NSString* const MixpanelTrackerUserProfilePropertyComputerModel = @"Computer Model";
 static NSString* const MixpanelTrackerUserProfilePropertyComputerName = @"Computer Name";
 static NSString* const MixpanelTrackerUserProfilePropertyAppVersion = @"App Version";
