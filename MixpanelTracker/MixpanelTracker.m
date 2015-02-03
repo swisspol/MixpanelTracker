@@ -61,16 +61,20 @@
 #define kLogEntry_Kind_ProfileCreation @"ProfileCreation"
 
 #define kLogEntry_Kind_ProfileUpdate @"ProfileUpdate"
-#define kLogEntry_ProfileUpdateAddedProperties @"AddedProperties"
-#define kLogEntry_ProfileUpdateRemovedProperties @"RemovedProperties"
+#define kLogEntry_ProfileUpdateSetProperties @"SetProperties"
+#define kLogEntry_ProfileUpdateUnsetProperties @"UnsetProperties"
 
 #define kLogEntry_Kind_Purchase @"Purchase"
 #define kLogEntry_PurchaseAmount @"Amount"
 #define kLogEntry_PurchaseAttributes @"Attributes"
 
-static NSString* const MixpanelTrackerUserProfilePropertyCreated = @"$created";  // Special Mixpanel property
-static NSString* const MixpanelTrackerUserProfilePropertyName = @"$name";  // Special Mixpanel property
-static NSString* const MixpanelTrackerUserProfilePropertyEmail = @"$email";  // Special Mixpanel property
+NSString* const MixpanelTrackerUserProfilePropertyFirstName = @"$first_name";
+NSString* const MixpanelTrackerUserProfilePropertyLastName = @"$last_name";
+NSString* const MixpanelTrackerUserProfilePropertyName = @"$name";
+NSString* const MixpanelTrackerUserProfilePropertyCreated = @"$created";
+NSString* const MixpanelTrackerUserProfilePropertyEmail = @"$email";
+NSString* const MixpanelTrackerUserProfilePropertyPhone = @"$phone";
+
 static NSString* const MixpanelTrackerUserProfilePropertyComputerModel = @"Computer Model";
 static NSString* const MixpanelTrackerUserProfilePropertyComputerName = @"Computer Name";
 static NSString* const MixpanelTrackerUserProfilePropertyAppVersion = @"App Version";
@@ -156,7 +160,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   NSDictionary* propertyList = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
   NSString* osVersion = [propertyList objectForKey:@"ProductVersion"];
   return @{
-           MixpanelTrackerUserProfilePropertyName: NSFullUserName(),
            MixpanelTrackerUserProfilePropertyComputerModel: computerModel ? computerModel : @"",
            MixpanelTrackerUserProfilePropertyComputerName: computerName ? computerName : @"",
            MixpanelTrackerUserProfilePropertyAppVersion: appVersion ? appVersion : @"",
@@ -395,22 +398,22 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                    }];
         [updateEntries addObject:entry];
       } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updateEntries.count < kAPIMaxBatchSize - 1)) {
-        if ([[entry objectForKey:kLogEntry_ProfileUpdateAddedProperties] count]) {
+        if ([[entry objectForKey:kLogEntry_ProfileUpdateSetProperties] count]) {
           [updatePayload addObject:@{
                                      @"$token": _token,
                                      @"$distinct_id": _distinctID,
                                      @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                      @"$ignore_time": @NO,
-                                     @"$set": [entry objectForKey:kLogEntry_ProfileUpdateAddedProperties]
+                                     @"$set": [entry objectForKey:kLogEntry_ProfileUpdateSetProperties]
                                      }];
         }
-        if ([[entry objectForKey:kLogEntry_ProfileUpdateRemovedProperties] count]) {
+        if ([[entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties] count]) {
           [updatePayload addObject:@{
                                      @"$token": _token,
                                      @"$distinct_id": _distinctID,
                                      @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                      @"$ignore_time": @NO,
-                                     @"$unset": [entry objectForKey:kLogEntry_ProfileUpdateRemovedProperties]
+                                     @"$unset": [entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties]
                                      }];
         }
         [updateEntries addObject:entry];
@@ -530,34 +533,21 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   });
 }
 
-- (void)recordUserProfileCreation {
-  NSDictionary* entry = @{
-                          kLogEntry_Kind: kLogEntry_Kind_ProfileCreation,
-                          kLogEntry_Timestamp: [NSNumber numberWithDouble:CFAbsoluteTimeGetCurrent()]
-                          };
-  dispatch_sync(_logQueue, ^{
-    [self _addLogEntry:entry forceFlush:NO];
-#if DEBUG
-    NSLog(@"Recorded Mixpanel user profile creation");
-#endif
-  });
-}
-
-- (void)recordUserProfileUpdateWithAddedProperties:(NSDictionary*)addedProperties removedProperties:(NSArray*)removedProperties {
+- (void)recordUserProfileUpdateWithSetProperties:(NSDictionary*)setProperties unsetProperties:(NSArray*)unsetProperties {
   NSDictionary* entry = @{
                           kLogEntry_Kind: kLogEntry_Kind_ProfileUpdate,
                           kLogEntry_Timestamp: [NSNumber numberWithDouble:CFAbsoluteTimeGetCurrent()],
-                          kLogEntry_ProfileUpdateAddedProperties: addedProperties ? addedProperties : @{},
-                          kLogEntry_ProfileUpdateRemovedProperties: removedProperties ? removedProperties : @[]
+                          kLogEntry_ProfileUpdateSetProperties: setProperties ? setProperties : @{},
+                          kLogEntry_ProfileUpdateUnsetProperties: unsetProperties ? unsetProperties : @[]
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
 #if DEBUG
-    if (addedProperties.count) {
-      NSLog(@"Recorded Mixpanel user profile update with added properties: %@", addedProperties);
+    if (setProperties.count) {
+      NSLog(@"Recorded Mixpanel user profile update with set properties: %@", setProperties);
     }
-    if (removedProperties.count) {
-      NSLog(@"Recorded Mixpanel user profile update with removed properties: %@", removedProperties);
+    if (unsetProperties.count) {
+      NSLog(@"Recorded Mixpanel user profile update with unset properties: %@", unsetProperties);
     }
 #endif
   });

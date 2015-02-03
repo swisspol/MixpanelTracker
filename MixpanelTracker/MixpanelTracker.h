@@ -30,6 +30,14 @@
 #define MIXPANEL_TRACK_EVENT(__NAME__, ...) [[MixpanelTracker sharedTracker] recordEventWithName:(__NAME__) properties:(__VA_ARGS__)]
 #define MIXPANEL_TRACK_PURCHASE(__AMOUNT__, ...) [[MixpanelTracker sharedTracker] recordPurchaseWithAmount:(__AMOUNT__) attributes:(__VA_ARGS__)]
 
+// See https://mixpanel.com/help/reference/http#people-special-properties
+extern NSString* const MixpanelTrackerUserProfilePropertyFirstName;
+extern NSString* const MixpanelTrackerUserProfilePropertyLastName;
+extern NSString* const MixpanelTrackerUserProfilePropertyName;
+extern NSString* const MixpanelTrackerUserProfilePropertyCreated;
+extern NSString* const MixpanelTrackerUserProfilePropertyEmail;
+extern NSString* const MixpanelTrackerUserProfilePropertyPhone;
+
 @interface MixpanelTracker : NSObject
 + (MixpanelTracker*)sharedTracker;
 + (void)startWithToken:(NSString*)token;  // Call from -applicationDidFinishLaunching:
@@ -38,7 +46,6 @@
 - (void)updateUserProfileWithOperation:(NSString*)operation value:(id)value updateLastSeen:(BOOL)update completionBlock:(void (^)(BOOL success))block;
 
 - (void)recordEventWithName:(NSString*)name properties:(NSDictionary*)properties;
-- (void)recordUserProfileCreation;
-- (void)recordUserProfileUpdateWithAddedProperties:(NSDictionary*)addedProperties removedProperties:(NSArray*)removedProperties;
+- (void)recordUserProfileUpdateWithSetProperties:(NSDictionary*)setProperties unsetProperties:(NSArray*)unsetProperties;
 - (void)recordPurchaseWithAmount:(float)amount attributes:(NSDictionary*)attributes;
 @end
