@@ -39,7 +39,6 @@
 #define kAPITimeOut 5.0
 #define kAPIMaxBatchSize 50
 
-#define kLogFile @"MixpanelTracker.plist"
 #if !DEBUG
 #define kLogMaxWriteDelay 60.0
 #define kLogMaxWritePending 20
@@ -204,7 +203,8 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     _dateFormatter.timeZone = [NSTimeZone timeZoneWithAbbreviation:@"GMT"];
     _log = [[NSMutableArray alloc] init];
     _logQueue = dispatch_queue_create(NULL, DISPATCH_QUEUE_SERIAL);
-    _logPath = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:kLogFile];
+    NSString* logFile = [NSString stringWithFormat:@"%@-%@.plist", [self class], [[NSBundle mainBundle] bundleIdentifier]];
+    _logPath = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:logFile];
     
     if ([[NSFileManager defaultManager] fileExistsAtPath:_logPath]) {
       NSArray* log = nil;
