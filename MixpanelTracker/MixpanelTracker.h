@@ -41,10 +41,10 @@ extern NSString* const MixpanelTrackerUserProfilePropertyPhone;
 // All methods are thread-safe
 @interface MixpanelTracker : NSObject
 + (MixpanelTracker*)sharedTracker;
-+ (void)startWithToken:(NSString*)token;  // Call from -applicationDidFinishLaunching:
++ (void)startWithToken:(NSString*)token;  // Call this method from -applicationDidFinishLaunching:
 
-- (void)sendEventWithName:(NSString*)name properties:(NSDictionary*)properties completionBlock:(void (^)(BOOL success))block;
-- (void)updateUserProfileWithOperation:(NSString*)operation value:(id)value updateLastSeen:(BOOL)update completionBlock:(void (^)(BOOL success))block;
+- (void)sendEventWithName:(NSString*)name properties:(NSDictionary*)properties completionBlock:(void (^)(BOOL success))block;  // Block is called on main thread
+- (void)updateUserProfileWithOperation:(NSString*)operation value:(id)value updateLastSeen:(BOOL)update completionBlock:(void (^)(BOOL success))block;  // Block is called on main thread
 
 - (void)recordEventWithName:(NSString*)name properties:(NSDictionary*)properties;
 - (void)recordUserProfileUpdateWithSetProperties:(NSDictionary*)setProperties unsetProperties:(NSArray*)unsetProperties;

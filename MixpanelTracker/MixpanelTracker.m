@@ -245,10 +245,11 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 - (void)_willTerminate:(NSNotification*)notification {
   [self recordEventWithName:MixpanelTrackerEventNameQuit properties:nil];
   [self writeToDiskIfNeeded];
-  [self sendToServerIfNeeded:NO];
+  [self waitForAsyncCompletion];
+  [self sendToServerIfNeeded];
 }
 
-- (NSURLRequest*)_urlRequestForAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost {
++ (NSURLRequest*)urlRequestForAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost {
   NSData* data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:NULL];
   NSMutableURLRequest* request;
   if (usePost) {
@@ -282,7 +283,13 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   return request;
 }
 
-- (BOOL)_checkAPI:(NSString*)api payload:(NSDictionary*)payload response:(NSURLResponse*)response data:(NSData*)data error:(NSError*)error {
++ (BOOL)checkAPI:(NSString*)api payload:(NSDictionary*)payload response:(NSURLResponse*)response data:(NSData*)data error:(NSError*)error {
+  if (!data && [error.domain isEqualToString:NSURLErrorDomain] && ((error.code == NSURLErrorNotConnectedToInternet) || (error.code == kCFURLErrorCannotFindHost))) {
+#if DEBUG
+    NSLog(@"Cannot communicate with Mixpanel API since not connected to Internet");
+#endif
+    return NO;
+  }
 #if !DEBUG
   if ((data.length != 1) || (*(char*)data.bytes != '1')) {
     NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : response);
@@ -291,7 +298,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 #else
   NSDictionary* result = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
   if (![result isKindOfClass:[NSDictionary class]] || ([[result objectForKey:@"status"] integerValue] != 1)) {
-    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"status"]);
+    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"error"]);
     return NO;
   }
   NSData* json = [NSJSONSerialization dataWithJSONObject:payload options:NSJSONWritingPrettyPrinted error:NULL];
@@ -300,23 +307,23 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   return YES;
 }
 
-- (void)_callAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost async:(BOOL)async completionBlock:(void (^)(BOOL success))block {
-  NSURLRequest* request = [self _urlRequestForAPI:api withPayload:payload usePost:usePost];
++ (void)callAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost async:(BOOL)async completionBlock:(void (^)(BOOL success))block {
+  static dispatch_once_t token = 0;
+  static NSOperationQueue* operationQueue = nil;
+  dispatch_once(&token, ^{
+    operationQueue = [[NSOperationQueue alloc] init];
+    operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0);
+  });
+  NSURLRequest* request = [self urlRequestForAPI:api withPayload:payload usePost:usePost];
   if (async) {
-    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse* response, NSData* data, NSError* error) {
-      BOOL success = [self _checkAPI:api payload:payload response:response data:data error:error];
-      if (block) {
-        block(success);
-      }
+    [NSURLConnection sendAsynchronousRequest:request queue:operationQueue completionHandler:^(NSURLResponse* response, NSData* data, NSError* error) {
+      block([self checkAPI:api payload:payload response:response data:data error:error]);
     }];
   } else {
     NSError* error = nil;
     NSURLResponse* response = nil;
     NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
-    BOOL success = [self _checkAPI:api payload:payload response:response data:data error:error];
-    if (block) {
-      block(success);
-    }
+    block([self checkAPI:api payload:payload response:response data:data error:error]);
   }
 }
 
@@ -329,7 +336,13 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"event": name,
                             @"properties": extendedProperties
                             };
-  [self _callAPI:@"track" withPayload:payload usePost:NO async:YES completionBlock:block];
+  [[self class] callAPI:@"track" withPayload:payload usePost:NO async:YES completionBlock:^(BOOL success) {
+    if (block) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        block(success);
+      });
+    }
+  }];
 }
 
 - (void)updateUserProfileWithOperation:(NSString*)operation value:(id)value updateLastSeen:(BOOL)update completionBlock:(void (^)(BOOL success))block {
@@ -340,7 +353,13 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"$ignore_time": [NSNumber numberWithBool:!update],
                             operation: value
                             };
-  [self _callAPI:@"engage" withPayload:payload usePost:NO async:YES completionBlock:block];
+  [[self class] callAPI:@"engage" withPayload:payload usePost:NO async:YES completionBlock:^(BOOL success) {
+    if (block) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        block(success);
+      });
+    }
+  }];
 }
 
 // Assume called from log queue
@@ -428,44 +447,48 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     __block BOOL _updatePending = NO;
     if (updatePayload.count) {
       _updatePending = YES;
-      [self _callAPI:@"engage" withPayload:updatePayload usePost:YES async:async completionBlock:^(BOOL success) {
-        if (success) {
-          if (async) {
-            dispatch_sync(_logQueue, ^{
-              [self _removeLogEntries:updateEntries];
-              _lastLogSend = CFAbsoluteTimeGetCurrent();
-            });
-          } else {
+      [[self class] callAPI:@"engage" withPayload:updatePayload usePost:YES async:async completionBlock:^(BOOL success) {
+        void (^block)() = ^() {
+          if (success) {
             [self _removeLogEntries:updateEntries];
             _lastLogSend = CFAbsoluteTimeGetCurrent();
           }
-        }
-        _updatePending = NO;
-        if (_eventPending == NO) {
-          _sending = NO;
+          _updatePending = NO;
+          if (_eventPending == NO) {
+            _sending = NO;
+          }
+        };
+        if (async) {
+          dispatch_sync(_logQueue, block);
+        } else {
+          block();
         }
       }];
     }
     if (eventPayload.count) {
       _eventPending = YES;
-      [self _callAPI:@"track" withPayload:eventPayload usePost:YES async:async completionBlock:^(BOOL success) {
-        if (success) {
-          if (async) {
-            dispatch_sync(_logQueue, ^{
-              [self _removeLogEntries:eventEntries];
-              _lastLogSend = CFAbsoluteTimeGetCurrent();
-            });
-          } else {
+      [[self class] callAPI:@"track" withPayload:eventPayload usePost:YES async:async completionBlock:^(BOOL success) {
+        void (^block)() = ^() {
+          if (success) {
             [self _removeLogEntries:eventEntries];
             _lastLogSend = CFAbsoluteTimeGetCurrent();
           }
-        }
-        _eventPending = NO;
-        if (_updatePending == NO) {
-          _sending = NO;
+          _eventPending = NO;
+          if (_updatePending == NO) {
+            _sending = NO;
+          }
+        };
+        if (async) {
+          dispatch_sync(_logQueue, block);
+        } else {
+          block();
         }
       }];
     }
+  } else {
+#if DEBUG
+    NSLog(@"Skipping sending Mixpanel log to servers since already in the processing of sending a previous version");
+#endif
   }
 }
 
@@ -565,12 +588,25 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   });
 }
 
-- (void)sendToServerIfNeeded:(BOOL)async {
+- (void)sendToServerIfNeeded {
   dispatch_sync(_logQueue, ^{
     if (_log.count) {
-      [self _sendLog:async];
+      [self _sendLog:NO];
     }
   });
+}
+
+- (void)waitForAsyncCompletion {
+  while (1) {
+    __block BOOL sending;
+    dispatch_sync(_logQueue, ^{
+      sending = _sending;
+    });
+    if (!sending) {
+      break;
+    }
+    usleep(50 * 1000);  // Wait 50 ms and try again
+  }
 }
 
 @end
