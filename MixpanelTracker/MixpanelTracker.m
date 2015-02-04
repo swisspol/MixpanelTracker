@@ -238,7 +238,8 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
 }
 
 - (void)startWithToken:(NSString*)token {
-  _token = [token copy];
+  assert(_token == nil);
+  _token = [token copy];  // Assume there can be no race-conditions in practice
   [self recordEventWithName:MixpanelTrackerEventNameLaunch properties:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willResignActive:) name:NSApplicationWillResignActiveNotification object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willTerminate:) name:NSApplicationWillTerminateNotification object:nil];

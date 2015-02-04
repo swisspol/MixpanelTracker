@@ -38,6 +38,7 @@ extern NSString* const MixpanelTrackerUserProfilePropertyCreated;
 extern NSString* const MixpanelTrackerUserProfilePropertyEmail;
 extern NSString* const MixpanelTrackerUserProfilePropertyPhone;
 
+// All methods are thread-safe
 @interface MixpanelTracker : NSObject
 + (MixpanelTracker*)sharedTracker;
 + (void)startWithToken:(NSString*)token;  // Call from -applicationDidFinishLaunching:
