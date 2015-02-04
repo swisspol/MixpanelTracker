@@ -39,16 +39,16 @@
 #define kAPITimeOut 5.0
 #define kAPIMaxBatchSize 50
 
-#if !DEBUG
-#define kLogMaxWriteDelay 60.0
-#define kLogMaxWritePending 20
-#define kLogMaxSendDelay 300.0
-#define kLogMaxSendPending 50
-#else
+#if DEBUG
 #define kLogMaxWriteDelay 10.0
 #define kLogMaxWritePending 5
 #define kLogMaxSendDelay 30.0
 #define kLogMaxSendPending 10
+#else
+#define kLogMaxWriteDelay 60.0
+#define kLogMaxWritePending 20
+#define kLogMaxSendDelay 300.0
+#define kLogMaxSendPending 50
 #endif
 
 #define kLogEntry_Kind @"Kind"
@@ -68,6 +68,14 @@
 #define kLogEntry_PurchaseAmount @"Amount"
 #define kLogEntry_PurchaseAttributes @"Attributes"
 
+#define LOG_ERROR(...) NSLog(__VA_ARGS__)
+#define LOG_VERBOSE(...) \
+  do { \
+    if (_verboseLogging) { \
+      NSLog(__VA_ARGS__); \
+    } \
+  } while (0)
+
 NSString* const MixpanelTrackerUserProfilePropertyFirstName = @"$first_name";
 NSString* const MixpanelTrackerUserProfilePropertyLastName = @"$last_name";
 NSString* const MixpanelTrackerUserProfilePropertyName = @"$name";
@@ -82,6 +90,8 @@ static NSString* const MixpanelTrackerUserProfilePropertyOSVersion = @"OS Versio
 
 static NSString* const MixpanelTrackerEventNameLaunch = @"Launch";
 static NSString* const MixpanelTrackerEventNameQuit = @"Quit";
+
+static BOOL _verboseLogging = NO;
 
 static NSData* _CopyPrimaryMACAddress() {
   NSData* data = nil;
@@ -207,16 +217,12 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       }
       if (log) {
         [_log addObjectsFromArray:log];
-#if DEBUG
-        NSLog(@"Loaded Mixpanel log with %lu entries", (unsigned long)_log.count);
-#endif
+        LOG_VERBOSE(@"Loaded Mixpanel log with %lu entries", (unsigned long)_log.count);
       } else {
-        NSLog(@"Failed reading Mixpanel log from \"%@\": %@", _logPath, error);
+        LOG_ERROR(@"Failed reading Mixpanel log from \"%@\": %@", _logPath, error);
       }
     } else {
-#if DEBUG
-      NSLog(@"Creating new Mixpanel log");
-#endif
+      LOG_VERBOSE(@"Creating new Mixpanel log");
       NSDictionary* entry = @{
                               kLogEntry_Kind: kLogEntry_Kind_ProfileCreation,
                               kLogEntry_Timestamp: [NSNumber numberWithDouble:CFAbsoluteTimeGetCurrent()]
@@ -226,6 +232,14 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     }
   }
   return self;
+}
+
+- (void)setVerboseLoggingEnabled:(BOOL)flag {
+  _verboseLogging = flag;
+}
+
+- (BOOL)isVerboseLoggingEnabled {
+  return _verboseLogging;
 }
 
 - (void)startWithToken:(NSString*)token {
@@ -285,24 +299,22 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 + (BOOL)checkAPI:(NSString*)api payload:(NSDictionary*)payload response:(NSURLResponse*)response data:(NSData*)data error:(NSError*)error {
   if (!data && [error.domain isEqualToString:NSURLErrorDomain] && ((error.code == NSURLErrorNotConnectedToInternet) || (error.code == kCFURLErrorCannotFindHost))) {
+    LOG_VERBOSE(@"Cannot communicate with Mixpanel API since not connected to Internet");
+    return NO;
+  }
 #if DEBUG
-    NSLog(@"Cannot communicate with Mixpanel API since not connected to Internet");
-#endif
-    return NO;
-  }
-#if !DEBUG
-  if ((data.length != 1) || (*(char*)data.bytes != '1')) {
-    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : response);
-    return NO;
-  }
-#else
   NSDictionary* result = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
   if (![result isKindOfClass:[NSDictionary class]] || ([[result objectForKey:@"status"] integerValue] != 1)) {
-    NSLog(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"error"]);
+    LOG_ERROR(@"Failed calling Mixpanel API '%@': %@", api, error ? error : [result objectForKey:@"error"]);
     return NO;
   }
   NSData* json = [NSJSONSerialization dataWithJSONObject:payload options:NSJSONWritingPrettyPrinted error:NULL];
-  NSLog(@"Successfully called Mixpanel API '%@' with payload: %@", api, [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]);
+  LOG_VERBOSE(@"Successfully called Mixpanel API '%@' with payload: %@", api, [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]);
+#else
+  if ((data.length != 1) || (*(char*)data.bytes != '1')) {
+    LOG_ERROR(@"Failed calling Mixpanel API '%@': %@", api, error ? error : response);
+    return NO;
+  }
 #endif
   return YES;
 }
@@ -486,9 +498,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       }];
     }
   } else {
-#if DEBUG
-    NSLog(@"Skipping sending Mixpanel log to servers since already in the processing of sending a previous version");
-#endif
+    LOG_VERBOSE(@"Skipping sending Mixpanel log to servers since already in the processing of sending a previous version");
   }
 }
 
@@ -499,17 +509,15 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   data = [NSPropertyListSerialization dataWithPropertyList:_log format:NSPropertyListBinaryFormat_v1_0 options:0 error:&error];
   if (data) {
     if (![data writeToFile:_logPath options:NSDataWritingAtomic error:&error]) {
-      NSLog(@"Failed writing Mixpanel log to \"%@\": %@", _logPath, error);
+      LOG_ERROR(@"Failed writing Mixpanel log to \"%@\": %@", _logPath, error);
     }
     else {
       _logPendingWrite = 0;
       _lastLogWrite = CFAbsoluteTimeGetCurrent();
-#if DEBUG
-      NSLog(@"Saved Mixpanel log with %lu entries", (unsigned long)_log.count);
-#endif
+      LOG_VERBOSE(@"Saved Mixpanel log with %lu entries", (unsigned long)_log.count);
     }
   } else {
-    NSLog(@"Failed serializing Mixpanel log: %@", error);
+    LOG_ERROR(@"Failed serializing Mixpanel log: %@", error);
   }
 }
 
@@ -539,9 +547,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
-#if DEBUG
-    NSLog(@"Recorded Mixpanel event \"%@\" with properties: %@", name, properties);
-#endif
+    LOG_VERBOSE(@"Recorded Mixpanel event \"%@\" with properties: %@", name, properties);
   });
 }
 
@@ -554,14 +560,12 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:NO];
-#if DEBUG
     if (setProperties.count) {
-      NSLog(@"Recorded Mixpanel user profile update with set properties: %@", setProperties);
+      LOG_VERBOSE(@"Recorded Mixpanel user profile update with set properties: %@", setProperties);
     }
     if (unsetProperties.count) {
-      NSLog(@"Recorded Mixpanel user profile update with unset properties: %@", unsetProperties);
+      LOG_VERBOSE(@"Recorded Mixpanel user profile update with unset properties: %@", unsetProperties);
     }
-#endif
   });
 }
 
@@ -574,9 +578,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                           };
   dispatch_sync(_logQueue, ^{
     [self _addLogEntry:entry forceFlush:YES];
-#if DEBUG
-    NSLog(@"Recorded Mixpanel purchase for \"%f\" with attributes: %@", amount, attributes);
-#endif
+    LOG_VERBOSE(@"Recorded Mixpanel purchase for \"%f\" with attributes: %@", amount, attributes);
   });
 }
 
