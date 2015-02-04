@@ -159,7 +159,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   NSString* _distinctID;
   NSDictionary* _userProfileProperties;
   NSDateFormatter* _dateFormatter;
-  SCNetworkReachabilityRef _reachabilityRef;
   
   NSMutableArray* _log;
   dispatch_queue_t _logQueue;
@@ -186,10 +185,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   [[MixpanelTracker sharedTracker] startWithToken:token];
 }
 
-static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info) {
-  ;  // Having a no-op callback works around a bug in OS X 10.10 where SCNetworkReachabilityGetFlags() can hang
-}
-
 - (id)init {
   if ((self = [super init])) {
     _distinctID = _GetDefaultDistinctID();
@@ -198,10 +193,6 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
     _dateFormatter.dateFormat = @"yyyy'-'MM'-'dd'T'HH':'mm':'ss";
     _dateFormatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
     _dateFormatter.timeZone = [NSTimeZone timeZoneWithAbbreviation:@"GMT"];
-    _reachabilityRef = SCNetworkReachabilityCreateWithName(kCFAllocatorDefault, [kAPIHostname UTF8String]);
-    SCNetworkReachabilityContext context = {0, (__bridge void*)self, NULL, NULL, NULL};
-    SCNetworkReachabilitySetCallback(_reachabilityRef, _NetworkReachabilityCallBack, &context);
-    SCNetworkReachabilitySetDispatchQueue(_reachabilityRef, dispatch_get_main_queue());
     
     _log = [[NSMutableArray alloc] init];
     _logQueue = dispatch_queue_create(NULL, DISPATCH_QUEUE_SERIAL);
@@ -574,21 +565,9 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
   });
 }
 
-- (BOOL)_checkIfOnline {
-  BOOL online = YES;
-  SCNetworkConnectionFlags flags;
-  if (SCNetworkReachabilityGetFlags(_reachabilityRef, &flags) && (!(flags & kSCNetworkReachabilityFlagsReachable) || (flags & kSCNetworkReachabilityFlagsConnectionRequired))) {
-    online = NO;
-#if DEBUG
-    NSLog(@"Unable to communicate with Mixpanel servers since computer is offline");
-#endif
-  }
-  return online;
-}
-
 - (void)sendToServerIfNeeded:(BOOL)async {
   dispatch_sync(_logQueue, ^{
-    if (_log.count && [self _checkIfOnline]) {
+    if (_log.count) {
       [self _sendLog:async];
     }
   });
