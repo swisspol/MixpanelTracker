@@ -265,7 +265,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   if (usePost) {
     size_t length;
     char* buffer = NewBase64Encode(data.bytes, data.length, false, &length);
-    NSString* url = [NSString stringWithFormat:@"http://%@/%@/", kAPIHostname, api];
+    NSString* url = [NSString stringWithFormat:@"https://%@/%@/", kAPIHostname, api];
     request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
