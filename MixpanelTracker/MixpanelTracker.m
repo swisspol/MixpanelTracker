@@ -373,7 +373,7 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
     NSMutableSet* updateEntries = [[NSMutableSet alloc] init];
     for (NSDictionary* entry in _log) {
       NSString* kind = [entry objectForKey:kLogEntry_Kind];
-      if ([kind isEqualToString:kLogEntry_Kind_Event] && (updateEntries.count < kAPIMaxBatchSize)) {
+      if ([kind isEqualToString:kLogEntry_Kind_Event] && (eventPayload.count < kAPIMaxBatchSize)) {
         NSMutableDictionary* properties = [NSMutableDictionary dictionaryWithDictionary:[entry objectForKey:kLogEntry_EventProperties]];
         [properties setObject:_token forKey:@"token"];
         [properties setObject:[NSNumber numberWithInteger:([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970)] forKey:@"time"];
@@ -383,7 +383,7 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
                                   @"properties": properties
                                   }];
         [eventEntries addObject:entry];
-      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileCreation] && (updateEntries.count < kAPIMaxBatchSize)) {
+      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileCreation] && (updatePayload.count < kAPIMaxBatchSize)) {
         NSString* now = [_dateFormatter stringFromDate:[NSDate date]];
         NSMutableDictionary* properties = [NSMutableDictionary dictionaryWithDictionary:_userProfileProperties];
         [properties setObject:now forKey:MixpanelTrackerUserProfilePropertyCreated];
@@ -395,7 +395,7 @@ static void _NetworkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetw
                                    @"$set_once": properties
                                    }];
         [updateEntries addObject:entry];
-      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updateEntries.count < kAPIMaxBatchSize - 1)) {
+      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updatePayload.count < kAPIMaxBatchSize - 1)) {
         if ([[entry objectForKey:kLogEntry_ProfileUpdateSetProperties] count]) {
           [updatePayload addObject:@{
                                      @"$token": _token,
