@@ -30,6 +30,15 @@
 #define MIXPANEL_TRACK_EVENT(__NAME__, ...) [[MixpanelTracker sharedTracker] recordEventWithName:(__NAME__) properties:(__VA_ARGS__)]
 #define MIXPANEL_TRACK_PURCHASE(__AMOUNT__, ...) [[MixpanelTracker sharedTracker] recordPurchaseWithAmount:(__AMOUNT__) attributes:(__VA_ARGS__)]
 
+// See https://mixpanel.com/help/reference/http#people-analytics-updates
+extern NSString* const MixpanelTrackerUserProfileOperationSet;
+extern NSString* const MixpanelTrackerUserProfileOperationSetOnce;
+extern NSString* const MixpanelTrackerUserProfileOperationAdd;
+extern NSString* const MixpanelTrackerUserProfileOperationAppend;
+extern NSString* const MixpanelTrackerUserProfileOperationUnion;
+extern NSString* const MixpanelTrackerUserProfileOperationUnset;
+extern NSString* const MixpanelTrackerUserProfileOperationDelete;
+
 // See https://mixpanel.com/help/reference/http#people-special-properties
 extern NSString* const MixpanelTrackerUserProfilePropertyFirstName;
 extern NSString* const MixpanelTrackerUserProfilePropertyLastName;

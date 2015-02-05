@@ -76,6 +76,14 @@
     } \
   } while (0)
 
+NSString* const MixpanelTrackerUserProfileOperationSet = @"$set";
+NSString* const MixpanelTrackerUserProfileOperationSetOnce = @"$set_once";
+NSString* const MixpanelTrackerUserProfileOperationAdd = @"$add";
+NSString* const MixpanelTrackerUserProfileOperationAppend = @"$append";
+NSString* const MixpanelTrackerUserProfileOperationUnion = @"$union";
+NSString* const MixpanelTrackerUserProfileOperationUnset = @"$unset";
+NSString* const MixpanelTrackerUserProfileOperationDelete = @"$delete";
+
 NSString* const MixpanelTrackerUserProfilePropertyFirstName = @"$first_name";
 NSString* const MixpanelTrackerUserProfilePropertyLastName = @"$last_name";
 NSString* const MixpanelTrackerUserProfilePropertyName = @"$name";
@@ -262,10 +270,10 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   [self sendToServerIfNeeded];
 }
 
-+ (NSURLRequest*)urlRequestForAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost {
++ (NSURLRequest*)urlRequestForAPI:(NSString*)api withPayload:(id)payload usePOST:(BOOL)usePOST {
   NSData* data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:NULL];
   NSMutableURLRequest* request;
-  if (usePost) {
+  if (usePOST) {
     size_t length;
     char* buffer = NewBase64Encode(data.bytes, data.length, false, &length);
     NSString* url = [NSString stringWithFormat:@"https://%@/%@/", kAPIHostname, api];
@@ -318,14 +326,14 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   return YES;
 }
 
-+ (void)callAPI:(NSString*)api withPayload:(id)payload usePost:(BOOL)usePost async:(BOOL)async completionBlock:(void (^)(BOOL success))block {
++ (void)callAPI:(NSString*)api withPayload:(id)payload usePOST:(BOOL)usePOST async:(BOOL)async completionBlock:(void (^)(BOOL success))block {
   static dispatch_once_t token = 0;
   static NSOperationQueue* operationQueue = nil;
   dispatch_once(&token, ^{
     operationQueue = [[NSOperationQueue alloc] init];
     operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0);
   });
-  NSURLRequest* request = [self urlRequestForAPI:api withPayload:payload usePost:usePost];
+  NSURLRequest* request = [self urlRequestForAPI:api withPayload:payload usePOST:usePOST];
   if (async) {
     [NSURLConnection sendAsynchronousRequest:request queue:operationQueue completionHandler:^(NSURLResponse* response, NSData* data, NSError* error) {
       block([self checkAPI:api payload:payload response:response data:data error:error]);
@@ -347,7 +355,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"event": name,
                             @"properties": extendedProperties
                             };
-  [[self class] callAPI:@"track" withPayload:payload usePost:NO async:YES completionBlock:^(BOOL success) {
+  [[self class] callAPI:@"track" withPayload:payload usePOST:NO async:YES completionBlock:^(BOOL success) {
     if (block) {
       dispatch_async(dispatch_get_main_queue(), ^{
         block(success);
@@ -364,7 +372,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"$ignore_time": [NSNumber numberWithBool:!update],
                             operation: value
                             };
-  [[self class] callAPI:@"engage" withPayload:payload usePost:NO async:YES completionBlock:^(BOOL success) {
+  [[self class] callAPI:@"engage" withPayload:payload usePOST:NO async:YES completionBlock:^(BOOL success) {
     if (block) {
       dispatch_async(dispatch_get_main_queue(), ^{
         block(success);
@@ -413,7 +421,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                    @"$distinct_id": _distinctID,
                                    @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                    @"$ignore_time": @NO,
-                                   @"$set_once": properties
+                                   MixpanelTrackerUserProfileOperationSetOnce: properties
                                    }];
         [updateEntries addObject:entry];
       } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updatePayload.count < kAPIMaxBatchSize - 1)) {
@@ -423,7 +431,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                      @"$distinct_id": _distinctID,
                                      @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                      @"$ignore_time": @NO,
-                                     @"$set": [entry objectForKey:kLogEntry_ProfileUpdateSetProperties]
+                                     MixpanelTrackerUserProfileOperationSet: [entry objectForKey:kLogEntry_ProfileUpdateSetProperties]
                                      }];
         }
         if ([[entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties] count]) {
@@ -432,7 +440,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                      @"$distinct_id": _distinctID,
                                      @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                      @"$ignore_time": @NO,
-                                     @"$unset": [entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties]
+                                     MixpanelTrackerUserProfileOperationUnset: [entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties]
                                      }];
         }
         [updateEntries addObject:entry];
@@ -445,7 +453,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                    @"$distinct_id": _distinctID,
                                    @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
                                    @"$ignore_time": @NO,
-                                   @"$append": @{
+                                   MixpanelTrackerUserProfileOperationAppend: @{
                                        @"$transactions": attributes
                                        }
                                    }];
@@ -458,7 +466,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     __block BOOL _updatePending = NO;
     if (updatePayload.count) {
       _updatePending = YES;
-      [[self class] callAPI:@"engage" withPayload:updatePayload usePost:YES async:async completionBlock:^(BOOL success) {
+      [[self class] callAPI:@"engage" withPayload:updatePayload usePOST:YES async:async completionBlock:^(BOOL success) {
         void (^block)() = ^() {
           if (success) {
             [self _removeLogEntries:updateEntries];
@@ -478,7 +486,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     }
     if (eventPayload.count) {
       _eventPending = YES;
-      [[self class] callAPI:@"track" withPayload:eventPayload usePost:YES async:async completionBlock:^(BOOL success) {
+      [[self class] callAPI:@"track" withPayload:eventPayload usePOST:YES async:async completionBlock:^(BOOL success) {
         void (^block)() = ^() {
           if (success) {
             [self _removeLogEntries:eventEntries];
