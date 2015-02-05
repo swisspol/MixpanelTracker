@@ -43,6 +43,7 @@ extern NSString* const MixpanelTrackerUserProfilePropertyPhone;
 + (MixpanelTracker*)sharedTracker;
 + (void)startWithToken:(NSString*)token;  // Call this method from -applicationDidFinishLaunching:
 
+@property(nonatomic, readonly) NSString* distinctID;
 @property(nonatomic, getter=isVerboseLoggingEnabled) BOOL verboseLoggingEnabled;  // Default is NO
 
 - (void)sendEventWithName:(NSString*)name properties:(NSDictionary*)properties completionBlock:(void (^)(BOOL success))block;  // Block is called on main thread

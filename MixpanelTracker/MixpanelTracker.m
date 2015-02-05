@@ -166,7 +166,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 @interface MixpanelTracker () {
   NSString* _token;
-  NSString* _distinctID;
   NSDictionary* _userProfileProperties;
   NSDateFormatter* _dateFormatter;
   
