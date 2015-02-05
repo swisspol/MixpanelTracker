@@ -25,7 +25,6 @@
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <SystemConfiguration/SystemConfiguration.h>
 #import <IOKit/network/IOEthernetController.h>
 #import <CommonCrypto/CommonDigest.h>
 #import <sys/sysctl.h>
@@ -92,7 +91,6 @@ NSString* const MixpanelTrackerUserProfilePropertyEmail = @"$email";
 NSString* const MixpanelTrackerUserProfilePropertyPhone = @"$phone";
 
 static NSString* const MixpanelTrackerUserProfilePropertyComputerModel = @"Computer Model";
-static NSString* const MixpanelTrackerUserProfilePropertyComputerName = @"Computer Name";
 static NSString* const MixpanelTrackerUserProfilePropertyAppVersion = @"App Version";
 static NSString* const MixpanelTrackerUserProfilePropertyOSVersion = @"OS Version";
 
@@ -159,14 +157,12 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   sysctlbyname("hw.model", machine, &size, NULL, 0);
   NSString* computerModel = [NSString stringWithUTF8String:machine];
   free(machine);
-  NSString* computerName = CFBridgingRelease(SCDynamicStoreCopyComputerName(NULL, NULL));
   NSString* appVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
   NSData* data = [NSData dataWithContentsOfFile:@"/System/Library/CoreServices/SystemVersion.plist"];
   NSDictionary* propertyList = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
   NSString* osVersion = [propertyList objectForKey:@"ProductVersion"];
   return @{
            MixpanelTrackerUserProfilePropertyComputerModel: computerModel ? computerModel : @"",
-           MixpanelTrackerUserProfilePropertyComputerName: computerName ? computerName : @"",
            MixpanelTrackerUserProfilePropertyAppVersion: appVersion ? appVersion : @"",
            MixpanelTrackerUserProfilePropertyOSVersion: osVersion ? osVersion : @""
            };
