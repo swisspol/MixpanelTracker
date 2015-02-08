@@ -327,7 +327,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   static NSOperationQueue* operationQueue = nil;
   dispatch_once(&token, ^{
     operationQueue = [[NSOperationQueue alloc] init];
-    operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0);
   });
   NSURLRequest* request = [self urlRequestForAPI:api withPayload:payload usePOST:usePOST];
   if (async) {
