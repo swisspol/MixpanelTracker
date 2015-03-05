@@ -95,7 +95,6 @@ static NSString* const MixpanelTrackerUserProfilePropertyAppVersion = @"App Vers
 static NSString* const MixpanelTrackerUserProfilePropertyOSVersion = @"OS Version";
 
 static NSString* const MixpanelTrackerEventNameLaunch = @"Launch";
-static NSString* const MixpanelTrackerEventNameQuit = @"Quit";
 
 static BOOL _verboseLogging = NO;
 
@@ -260,7 +259,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 }
 
 - (void)_willTerminate:(NSNotification*)notification {
-  [self recordEventWithName:MixpanelTrackerEventNameQuit properties:nil];
   [self writeToDiskIfNeeded];
   [self waitForAsyncCompletion];
   [self sendToServerIfNeeded];
