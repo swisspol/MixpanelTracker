@@ -231,6 +231,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                               };
       [_log addObject:entry];
       _logPendingWrite += 1;
+      [[NSProcessInfo processInfo] disableSuddenTermination];
     }
   }
   return self;
@@ -348,11 +349,15 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"event": name,
                             @"properties": extendedProperties
                             };
+  [[NSProcessInfo processInfo] disableSuddenTermination];
   [[self class] callAPI:@"track" withPayload:payload usePOST:NO async:YES completionBlock:^(BOOL success) {
     if (block) {
       dispatch_async(dispatch_get_main_queue(), ^{
         block(success);
+        [[NSProcessInfo processInfo] enableSuddenTermination];
       });
+    } else {
+      [[NSProcessInfo processInfo] enableSuddenTermination];
     }
   }];
 }
@@ -365,11 +370,15 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                             @"$ignore_time": [NSNumber numberWithBool:!update],
                             operation: value
                             };
+  [[NSProcessInfo processInfo] disableSuddenTermination];
   [[self class] callAPI:@"engage" withPayload:payload usePOST:NO async:YES completionBlock:^(BOOL success) {
     if (block) {
       dispatch_async(dispatch_get_main_queue(), ^{
         block(success);
+        [[NSProcessInfo processInfo] enableSuddenTermination];
       });
+    } else {
+      [[NSProcessInfo processInfo] enableSuddenTermination];
     }
   }];
 }
@@ -459,6 +468,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     __block BOOL _updatePending = NO;
     if (updatePayload.count) {
       _updatePending = YES;
+      if (async) {
+        [[NSProcessInfo processInfo] disableSuddenTermination];
+      }
       [[self class] callAPI:@"engage" withPayload:updatePayload usePOST:YES async:async completionBlock:^(BOOL success) {
         void (^block)() = ^() {
           if (success) {
@@ -472,6 +484,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
         };
         if (async) {
           dispatch_sync(_logQueue, block);
+          [[NSProcessInfo processInfo] enableSuddenTermination];
         } else {
           block();
         }
@@ -479,6 +492,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     }
     if (eventPayload.count) {
       _eventPending = YES;
+      if (async) {
+        [[NSProcessInfo processInfo] disableSuddenTermination];
+      }
       [[self class] callAPI:@"track" withPayload:eventPayload usePOST:YES async:async completionBlock:^(BOOL success) {
         void (^block)() = ^() {
           if (success) {
@@ -492,6 +508,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
         };
         if (async) {
           dispatch_sync(_logQueue, block);
+          [[NSProcessInfo processInfo] enableSuddenTermination];
         } else {
           block();
         }
@@ -512,6 +529,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       LOG_ERROR(@"Failed writing Mixpanel log to \"%@\": %@", _logPath, error);
     }
     else {
+      if (_logPendingWrite != 0) {
+        [[NSProcessInfo processInfo] enableSuddenTermination];
+      }
       _logPendingWrite = 0;
       _lastLogWrite = CFAbsoluteTimeGetCurrent();
       LOG_VERBOSE(@"Saved Mixpanel log with %lu entries", (unsigned long)_log.count);
@@ -533,6 +553,9 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 // Assume called from log queue
 - (void)_addLogEntry:(NSDictionary*)entry forceFlush:(BOOL)force {
+  if (_logPendingWrite == 0) {
+    [[NSProcessInfo processInfo] disableSuddenTermination];
+  }
   [_log addObject:entry];
   _logPendingWrite += 1;
   [self _flushLog:force];
