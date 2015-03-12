@@ -150,12 +150,15 @@ static NSString* _GetDefaultDistinctID() {
 }
 
 static NSDictionary* _GetDefaultUserProfileProperties() {
+  NSString* computerModel = nil;
   size_t size;
-  sysctlbyname("hw.model", NULL, &size, NULL, 0);
-  char* machine = malloc(size);
-  sysctlbyname("hw.model", machine, &size, NULL, 0);
-  NSString* computerModel = [NSString stringWithUTF8String:machine];
-  free(machine);
+  if (sysctlbyname("hw.model", NULL, &size, NULL, 0) == 0) {
+    char* machine = malloc(size);
+    if (sysctlbyname("hw.model", machine, &size, NULL, 0) == 0) {
+      computerModel = [NSString stringWithUTF8String:machine];
+    }
+    free(machine);
+  }
   NSString* appVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
   NSData* data = [NSData dataWithContentsOfFile:@"/System/Library/CoreServices/SystemVersion.plist"];
   NSDictionary* propertyList = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
