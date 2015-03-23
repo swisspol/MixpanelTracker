@@ -290,7 +290,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     size_t length;
     char* buffer = NewBase64Encode(data.bytes, data.length, false, &length);
     NSString* string = [[NSString alloc] initWithBytes:buffer length:length encoding:NSASCIIStringEncoding];
-    NSString* url = [NSString stringWithFormat:@"http://%@/%@/?data=%@", kAPIHostname, api, string];
+    NSString* url = [NSString stringWithFormat:@"https://%@/%@/?data=%@", kAPIHostname, api, string];
 #if DEBUG
     url = [url stringByAppendingString:@"&verbose=1"];
 #endif
