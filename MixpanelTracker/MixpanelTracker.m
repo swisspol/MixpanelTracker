@@ -57,8 +57,6 @@
 #define kLogEntry_EventName @"Name"
 #define kLogEntry_EventProperties @"Properties"
 
-#define kLogEntry_Kind_ProfileCreation @"ProfileCreation"
-
 #define kLogEntry_Kind_ProfileUpdate @"ProfileUpdate"
 #define kLogEntry_ProfileUpdateSetProperties @"SetProperties"
 #define kLogEntry_ProfileUpdateUnsetProperties @"UnsetProperties"
@@ -175,7 +173,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 @interface MixpanelTracker () {
   NSString* _token;
-  NSDictionary* _userProfileProperties;
   NSDateFormatter* _dateFormatter;
   
   NSMutableArray* _log;
@@ -184,6 +181,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   NSUInteger _logPendingWrite;
   CFAbsoluteTime _lastLogWrite;
   CFAbsoluteTime _lastLogSend;
+  BOOL _enableFlushing;
   BOOL _sending;
 }
 @end
@@ -206,7 +204,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 - (id)init {
   if ((self = [super init])) {
     _distinctID = _GetDefaultDistinctID();
-    _userProfileProperties = _GetDefaultUserProfileProperties();
     _dateFormatter = [[NSDateFormatter alloc] init];
     _dateFormatter.dateFormat = @"yyyy'-'MM'-'dd'T'HH':'mm':'ss";
     _dateFormatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -231,13 +228,6 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
       }
     } else {
       LOG_VERBOSE(@"Creating new Mixpanel log");
-      NSDictionary* entry = @{
-                              kLogEntry_Kind: kLogEntry_Kind_ProfileCreation,
-                              kLogEntry_Timestamp: [NSNumber numberWithDouble:CFAbsoluteTimeGetCurrent()]
-                              };
-      [_log addObject:entry];
-      _logPendingWrite += 1;
-      [[NSProcessInfo processInfo] disableSuddenTermination];
     }
   }
   return self;
@@ -254,7 +244,14 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 - (void)startWithToken:(NSString*)token {
   assert(_token == nil);
   _token = [token copy];  // Assume there can be no race-conditions in practice
+  
+  [self recordUserProfileUpdateWithSetProperties:_GetDefaultUserProfileProperties() unsetProperties:nil];
   [self recordEventWithName:MixpanelTrackerEventNameLaunch properties:nil];
+  dispatch_sync(_logQueue, ^{
+    _enableFlushing = YES;
+    [self _flushLog:YES];
+  });
+  
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willResignActive:) name:NSApplicationWillResignActiveNotification object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willTerminate:) name:NSApplicationWillTerminateNotification object:nil];
 }
@@ -409,35 +406,32 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     NSMutableArray* updatePayload = [[NSMutableArray alloc] init];
     NSMutableSet* updateEntries = [[NSMutableSet alloc] init];
     for (NSDictionary* entry in _log) {
+      double timestamp = [[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970;
       NSString* kind = [entry objectForKey:kLogEntry_Kind];
       if ([kind isEqualToString:kLogEntry_Kind_Event] && (eventPayload.count < kAPIMaxBatchSize)) {
         NSMutableDictionary* properties = [NSMutableDictionary dictionaryWithDictionary:[entry objectForKey:kLogEntry_EventProperties]];
         [properties setObject:_token forKey:@"token"];
-        [properties setObject:[NSNumber numberWithInteger:([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970)] forKey:@"time"];
+        [properties setObject:[NSNumber numberWithInteger:timestamp] forKey:@"time"];
         [properties setObject:_distinctID forKey:@"distinct_id"];
         [eventPayload addObject:@{
                                   @"event": [entry objectForKey:kLogEntry_EventName],
                                   @"properties": properties
                                   }];
         [eventEntries addObject:entry];
-      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileCreation] && (updatePayload.count < kAPIMaxBatchSize)) {
+      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updatePayload.count < kAPIMaxBatchSize - 2)) {
         NSString* now = [_dateFormatter stringFromDate:[NSDate date]];
-        NSMutableDictionary* properties = [NSMutableDictionary dictionaryWithDictionary:_userProfileProperties];
-        [properties setObject:now forKey:MixpanelTrackerUserProfilePropertyCreated];
         [updatePayload addObject:@{
                                    @"$token": _token,
                                    @"$distinct_id": _distinctID,
-                                   @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
+                                   @"$time": [NSNumber numberWithInteger:(1000.0 * timestamp)],
                                    @"$ignore_time": @NO,
-                                   MixpanelTrackerUserProfileOperationSetOnce: properties
+                                   MixpanelTrackerUserProfileOperationSetOnce: @{MixpanelTrackerUserProfilePropertyCreated: now}
                                    }];
-        [updateEntries addObject:entry];
-      } else if ([kind isEqualToString:kLogEntry_Kind_ProfileUpdate] && (updatePayload.count < kAPIMaxBatchSize - 1)) {
         if ([[entry objectForKey:kLogEntry_ProfileUpdateSetProperties] count]) {
           [updatePayload addObject:@{
                                      @"$token": _token,
                                      @"$distinct_id": _distinctID,
-                                     @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
+                                     @"$time": [NSNumber numberWithInteger:(1000.0 * timestamp)],
                                      @"$ignore_time": @NO,
                                      MixpanelTrackerUserProfileOperationSet: [entry objectForKey:kLogEntry_ProfileUpdateSetProperties]
                                      }];
@@ -446,7 +440,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
           [updatePayload addObject:@{
                                      @"$token": _token,
                                      @"$distinct_id": _distinctID,
-                                     @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
+                                     @"$time": [NSNumber numberWithInteger:(1000.0 * timestamp)],
                                      @"$ignore_time": @NO,
                                      MixpanelTrackerUserProfileOperationUnset: [entry objectForKey:kLogEntry_ProfileUpdateUnsetProperties]
                                      }];
@@ -459,7 +453,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
         [updatePayload addObject:@{
                                    @"$token": _token,
                                    @"$distinct_id": _distinctID,
-                                   @"$time": [NSNumber numberWithInteger:(1000.0 * ([[entry objectForKey:kLogEntry_Timestamp] doubleValue] + kCFAbsoluteTimeIntervalSince1970))],
+                                   @"$time": [NSNumber numberWithInteger:(1000.0 * timestamp)],
                                    @"$ignore_time": @NO,
                                    MixpanelTrackerUserProfileOperationAppend: @{
                                        @"$transactions": attributes
@@ -549,11 +543,13 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
 
 // Assume called from log queue
 - (void)_flushLog:(BOOL)force {
-  if (force || (_logPendingWrite >= kLogMaxWritePending) || ((_logPendingWrite > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogWrite + kLogMaxWriteDelay))) {
-    [self _writeLog];
-  }
-  if (force || (_log.count >= kLogMaxSendPending) || ((_log.count > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogSend + kLogMaxSendDelay))) {
-    [self _sendLog:YES];
+  if (_enableFlushing) {
+    if (force || (_logPendingWrite >= kLogMaxWritePending) || ((_logPendingWrite > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogWrite + kLogMaxWriteDelay))) {
+      [self _writeLog];
+    }
+    if (force || (_log.count >= kLogMaxSendPending) || ((_log.count > 0) && (CFAbsoluteTimeGetCurrent() >= _lastLogSend + kLogMaxSendDelay))) {
+      [self _sendLog:YES];
+    }
   }
 }
 
