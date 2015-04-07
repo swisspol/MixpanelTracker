@@ -92,6 +92,7 @@ NSString* const MixpanelTrackerUserProfilePropertyPhone = @"$phone";
 
 static NSString* const MixpanelTrackerUserProfilePropertyComputerModel = @"Computer Model";
 static NSString* const MixpanelTrackerUserProfilePropertyAppVersion = @"App Version";
+static NSString* const MixpanelTrackerUserProfilePropertyAppBuild = @"App Build";
 static NSString* const MixpanelTrackerUserProfilePropertyOSVersion = @"OS Version";
 
 static NSString* const MixpanelTrackerEventNameLaunch = @"Launch";
@@ -160,12 +161,14 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     free(machine);
   }
   NSString* appVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+  NSString* appBuild = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"];
   NSData* data = [NSData dataWithContentsOfFile:@"/System/Library/CoreServices/SystemVersion.plist"];
   NSDictionary* propertyList = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
   NSString* osVersion = [propertyList objectForKey:@"ProductVersion"];
   return @{
            MixpanelTrackerUserProfilePropertyComputerModel: computerModel ? computerModel : @"",
            MixpanelTrackerUserProfilePropertyAppVersion: appVersion ? appVersion : @"",
+           MixpanelTrackerUserProfilePropertyAppBuild: appBuild ? appBuild : @"",
            MixpanelTrackerUserProfilePropertyOSVersion: osVersion ? osVersion : @""
            };
 }
