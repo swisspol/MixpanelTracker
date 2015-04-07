@@ -449,7 +449,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
                                      }];
         }
         [updateEntries addObject:entry];
-      } if ([kind isEqualToString:kLogEntry_Kind_Purchase] && (updatePayload.count < kAPIMaxBatchSize)) {
+      } else if ([kind isEqualToString:kLogEntry_Kind_Purchase] && (updatePayload.count < kAPIMaxBatchSize)) {
         NSMutableDictionary* attributes = [NSMutableDictionary dictionaryWithDictionary:[entry objectForKey:kLogEntry_PurchaseAttributes]];
         [attributes setObject:[_dateFormatter stringFromDate:[NSDate dateWithTimeIntervalSinceReferenceDate:[[entry objectForKey:kLogEntry_Timestamp] doubleValue]]] forKey:@"$time"];
         [attributes setObject:[entry objectForKey:kLogEntry_PurchaseAmount] forKey:@"$amount"];
