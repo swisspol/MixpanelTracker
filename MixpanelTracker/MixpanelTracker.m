@@ -43,11 +43,13 @@
 #define kLogMaxWritePending 5
 #define kLogMaxSendDelay 30.0
 #define kLogMaxSendPending 10
+#define kMinActivateEventInterval 30.0
 #else
 #define kLogMaxWriteDelay 60.0
 #define kLogMaxWritePending 20
 #define kLogMaxSendDelay 300.0
 #define kLogMaxSendPending 50
+#define kMinActivateEventInterval 3600.0
 #endif
 
 #define kLogEntry_Kind @"Kind"
@@ -94,6 +96,7 @@ static NSString* const MixpanelTrackerUserProfilePropertyAppBuild = @"App Build"
 static NSString* const MixpanelTrackerUserProfilePropertyOSVersion = @"OS Version";
 
 static NSString* const MixpanelTrackerEventNameLaunch = @"Launch";
+static NSString* const MixpanelTrackerEventNameActivate = @"Activate";
 
 static BOOL _verboseLogging = NO;
 
@@ -183,6 +186,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   CFAbsoluteTime _lastLogSend;
   BOOL _enableFlushing;
   BOOL _sending;
+  CFAbsoluteTime _lastActivationTime;
 }
 @end
 
@@ -245,6 +249,7 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
   assert(_token == nil);
   _token = [token copy];  // Assume there can be no race-conditions in practice
   
+  _lastActivationTime = CFAbsoluteTimeGetCurrent();
   [self recordUserProfileUpdateWithSetProperties:_GetDefaultUserProfileProperties() unsetProperties:nil];
   [self recordEventWithName:MixpanelTrackerEventNameLaunch properties:nil];
   dispatch_sync(_logQueue, ^{
@@ -252,8 +257,17 @@ static NSDictionary* _GetDefaultUserProfileProperties() {
     [self _flushLog:YES];
   });
   
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_didBecomeActive:) name:NSApplicationDidBecomeActiveNotification object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willResignActive:) name:NSApplicationWillResignActiveNotification object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_willTerminate:) name:NSApplicationWillTerminateNotification object:nil];
+}
+
+- (void)_didBecomeActive:(NSNotification*)notification {
+  CFAbsoluteTime time = CFAbsoluteTimeGetCurrent();
+  if (time >= _lastActivationTime + kMinActivateEventInterval) {
+    [self recordEventWithName:MixpanelTrackerEventNameActivate properties:nil];
+    _lastActivationTime = time;
+  }
 }
 
 - (void)_willResignActive:(NSNotification*)notification {
